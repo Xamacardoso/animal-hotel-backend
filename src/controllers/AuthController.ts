@@ -1,73 +1,118 @@
 import { Request, Response } from 'express';
-import PrismaClient from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-
-const prisma = new PrismaClient.PrismaClient();
+import { eq } from 'drizzle-orm';
+import { db } from '../core/database/index';
+import { usuarios, tutores, TUsuario, TTutor } from '../core/database/schema';
+import { RegisterSchema, LoginSchema } from '../core/validation.schema';
+import { ENV } from '../core/config/env'; 
 
 export class AuthController {
-    // Registro: Cria Usuario E Tutor numa única transação
+    
     async register(req: Request, res: Response) {
         try {
-            const { nome, email, senha, telefone } = req.body;
-
-            // Verifica se email já existe
-            const userExists = await prisma.usuario.findUnique({ where: { email } });
-            if (userExists) return res.status(400).json({ error: 'Email já cadastrado' });
-
-            const hash = await bcrypt.hash(senha, 10);
-
-            // Transação: Cria usuário e tutor juntos. Se um falhar, tudo falha.
-            const result = await prisma.$transaction(async (tx) => {
-                const newUser = await tx.usuario.create({
-                    data: {
-                        email,
-                        senha_hash: hash,
-                        nivel_acesso: 'tutor'
-                    }
+            // 1. Validação de Entrada com Zod
+            const parsedData = RegisterSchema.safeParse(req.body);
+            if (!parsedData.success) {
+                return res.status(400).json({ 
+                    error: 'Dados de entrada inválidos.', 
+                    details: parsedData.error.flatten().fieldErrors 
                 });
+            }
+            const { nome, telefone, email, senha } = parsedData.data;
 
-                const newTutor = await tx.tutor.create({
-                    data: {
+            // 2. Verifica se o e-mail já existe
+            const userExists = await db.query.usuarios.findFirst({
+                where: eq(usuarios.email, email)
+            });
+            if (userExists) {
+                return res.status(400).json({ error: 'E-mail já cadastrado.' });
+            }
+
+            // 3. Cria o hash da senha
+            const senhaHashBcrypt = await bcrypt.hash(senha, 10);
+
+            // 4. Executa a Transação Drizzle (cria Usuário e Tutor)
+            const result: any = await db.transaction(async (tx) => {
+                
+                // Cria o Usuário
+                const newUsers = await tx.insert(usuarios)
+                    .values({ email, senhaHash: senhaHashBcrypt, nivelAcesso: 'tutor' })
+                    .returning();
+                
+                const newUser = newUsers[0];
+
+                // Cria o Tutor, ligando-o ao novo Usuário
+                const newTutors = await tx.insert(tutores)
+                    .values({ 
                         nome,
                         telefone,
-                        fk_cod_usuario: newUser.cod_usuario
-                    }
-                });
+                        fkCodUsuario: newUser.codUsuario 
+                    })
+                    .returning();
 
-                return { user: newUser, tutor: newTutor };
+                // Usamos o 'as TUsuario/TTutor' para garantir que a inferência seja compatível com a remoção da senha hash no final
+                return { user: newUser as TUsuario, tutor: newTutors[0] as TTutor };
             });
 
-            return res.status(201).json(result);
+            // 5. Remove o hash da senha do objeto de retorno
+            const { senhaHash, ...userWithoutPass } = result.user;
+
+            return res.status(201).json({
+                message: 'Usuário e Tutor criados com sucesso.',
+                user: userWithoutPass,
+                tutor: result.tutor
+            });
 
         } catch (error) {
-            return res.status(500).json({ error: 'Erro ao criar conta' });
+            console.error(error);
+            return res.status(500).json({ error: 'Erro ao criar conta.' });
         }
     }
 
-    // Login: Retorna Token com ID do Usuario e ID do Tutor
     async login(req: Request, res: Response) {
-        const { email, senha } = req.body;
+        try {
+            // 1. Validação de Entrada com Zod
+            const parsedData = LoginSchema.safeParse(req.body);
+            if (!parsedData.success) {
+                return res.status(400).json({ 
+                    error: 'Dados de entrada inválidos.', 
+                    details: parsedData.error.flatten().fieldErrors 
+                });
+            }
+            const { email, senha } = parsedData.data;
 
-        const user = await prisma.usuario.findUnique({
-            where: { email },
-            include: { tutor: true } // Já traz o tutor associado
-        });
+            // 2. Busca o usuário e o tutor associado
+            const user = await db.query.usuarios.findFirst({
+                where: eq(usuarios.email, email),
+                with: {
+                    tutor: { columns: { codTutor: true, nome: true, telefone: true } }
+                }
+            });
 
-        if (!user) return res.status(401).json({ error: 'Credenciais inválidas' });
+            if (!user) return res.status(401).json({ error: 'Credenciais inválidas' });
 
-        const isValidPassword = await bcrypt.compare(senha, user.senha_hash);
-        if (!isValidPassword) return res.status(401).json({ error: 'Credenciais inválidas' });
+            // 3. Verifica a senha
+            const isValidPassword = await bcrypt.compare(senha, user.senhaHash);
+            if (!isValidPassword) return res.status(401).json({ error: 'Credenciais inválidas' });
 
-        // Gera token contendo IDs importantes
-        const token = jwt.sign({
-            cod_usuario: user.cod_usuario,
-            cod_tutor: user.tutor?.cod_tutor, // Importante para filtrar animais depois!
-            email: user.email
-        }, process.env.JWT_SECRET as string, { expiresIn: '1d' });
+            // 4. Gera o token
+            const token = jwt.sign({
+                cod_usuario: user.codUsuario,
+                cod_tutor: user.tutor?.codTutor,
+                email: user.email
+            }, ENV.JWT_SECRET, { expiresIn: '1d' });
 
-        // Retorna dados básicos e token (sem senha)
-        const { senha_hash, ...userWithoutPass } = user;
-        return res.json({ user: userWithoutPass, token });
+            // 5. Retorna dados
+            const { senhaHash, ...userWithoutPass } = user;
+            return res.json({ 
+                user: userWithoutPass, 
+                tutor: user.tutor,
+                token 
+            });
+
+        } catch (error) {
+            return res.status(500).json({ error: 'Erro no login' });
+        }
     }
 }

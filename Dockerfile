@@ -5,15 +5,14 @@ WORKDIR /usr/src/app
 
 # Copia arquivos de dependência
 COPY package*.json ./
-COPY prisma ./prisma/
+# A pasta prisma não é mais necessária
 
 # Instala TODAS as dependências (incluindo dev) para poder compilar
 RUN npm install
 
-# Gera o cliente do Prisma (necessário para o build)
-RUN npx prisma generate
+# O comando npx prisma generate foi removido
 
-# Copia o código fonte
+# Copia o código fonte (inclui src/ e drizzle.config.ts)
 COPY . .
 
 # Compila o TypeScript para JavaScript (pasta /dist)
@@ -30,18 +29,13 @@ ENV NODE_ENV=production
 COPY package*.json ./
 
 # Instala APENAS dependências de produção (ignora devDependencies)
+# O Drizzle ORM, Zod e o driver PG são instalados aqui
 RUN npm install --only=production
 
 # Copia o código compilado do estágio anterior
 COPY --from=builder /usr/src/app/dist ./dist
 
-# Copia a pasta prisma (necessária para validações de schema em runtime, se houver)
-COPY --from=builder /usr/src/app/prisma ./prisma
-
-# Copia o cliente Prisma gerado do estágio anterior (CRUCIAL)
-# O Prisma gera os arquivos binários dentro de node_modules
-COPY --from=builder /usr/src/app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /usr/src/app/node_modules/@prisma ./node_modules/@prisma
+# As pastas prisma, .prisma e @prisma não são mais necessárias e foram removidas.
 
 EXPOSE 3000
 

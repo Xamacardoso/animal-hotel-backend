@@ -12,7 +12,10 @@ dotenv.config({
 
 // Exporta as variáveis já tipadas para usar no projeto
 export const ENV = {
-  DATABASE_URL: process.env.DATABASE_URL!,
-  PORT: process.env.PORT || "3000",
-  // adicione outras variáveis que você precisar
+    NODE_ENV: process.env.NODE_ENV || "dev",
+    PORT: process.env.PORT || "3000",
+
+    DATABASE_URL: process.env.DATABASE_URL!,
+    JWT_SECRET: process.env.JWT_SECRET!,
+    // adicione outras variáveis que você precisar
 };
