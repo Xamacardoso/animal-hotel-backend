@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
-import { AuthController } from './controllers/AuthController';
-import { AnimalController } from './controllers/AnimalController';
+import { AuthController } from './controllers_deprecated/AuthController';
+import { AnimalController } from './controllers_deprecated/AnimalController';
 import { authMiddleware } from './middleware/authMiddleware';
 
 const app = express();
