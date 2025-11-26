@@ -1,0 +1,59 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Tabela de Usuário (Login)
+model Usuario {
+  cod_usuario   Int      @id @default(autoincrement())
+  email         String   @unique
+  senha_hash    String
+  nivel_acesso  String   @default("tutor") // 'admin' ou 'tutor'
+  
+  // Relação 1 para 1 com Tutor
+  tutor         Tutor?
+
+  @@map("usuario")
+}
+
+// Tabela de Tutor (Dados Pessoais)
+model Tutor {
+  cod_tutor        Int      @id @default(autoincrement())
+  nome             String
+  telefone         String?
+  fk_cod_usuario   Int      @unique // Chave estrangeira única (1:1)
+  
+  // Relacionamentos
+  usuario          Usuario  @relation(fields: [fk_cod_usuario], references: [cod_usuario])
+  animais          Animal[]
+
+  @@map("tutor")
+}
+
+// Tabela de Animais
+model Animal {
+  cod_animal      Int      @id @default(autoincrement())
+  nome            String
+  especie         String
+  raca            String?
+  idade           Int?
+  observacao      String?
+  genero          String?  // 'M' ou 'F'
+  fk_cod_tutor    Int
+
+  // Relacionamentos
+  tutor           Tutor    @relation(fields: [fk_cod_tutor], references: [cod_tutor])
+
+  @@map("animal")
+}
