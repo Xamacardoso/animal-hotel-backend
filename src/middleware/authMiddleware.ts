@@ -1,30 +1,27 @@
-import { Request, Response, NextFunction } from 'express';
+import { FastifyRequest, FastifyReply } from 'fastify';
 import jwt from 'jsonwebtoken';
+import { ENV } from '../core/config/env';
+import { AuthUser } from 'src/types';
 
-// Estendendo a tipagem do Express para incluir o usuario no request
-export interface AuthRequest extends Request {
-    user?: {
-        cod_usuario: number;
-        cod_tutor?: number;
-        email: string;
-    }
-}
+export const authHook = async (
+    request: FastifyRequest,
+    reply: FastifyReply,
+) => {
+    const authHeader = request.headers.authorization;
 
-export const authMiddleware = (req: AuthRequest, res: Response, next: NextFunction) => {
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader) {
-        return res.status(401).json({ error: 'Token não fornecido' });
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        reply.status(401).send({ error: 'Token não fornecido ou formato de token invalido' });
+        throw new Error('Unauthorized');
     }
 
-    // O header vem como "Bearer <token>", pegamos só a segunda parte
     const [, token] = authHeader.split(' ');
 
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET as string);
-        req.user = decoded as any;
-        next();
+        const decoded = jwt.verify(token, ENV.JWT_SECRET) as AuthUser;
+
+        (request as any).user = decoded;
     } catch (error) {
-        return res.status(401).json({ error: 'Token inválido' });
+        reply.status(401).send({ error: 'Token inválido ou expirado' });
+        throw new Error('Unauthorized');
     }
-};
+}

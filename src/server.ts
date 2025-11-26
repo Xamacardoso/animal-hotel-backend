@@ -1,11 +1,12 @@
 import { ENV } from './core/config/env'; // Importa a configuração de ambiente
 import { pool } from './core/database';
 import fastify from 'fastify';
-import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
+import { jsonSchemaTransform, serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
 import fastifyCors from '@fastify/cors';
 import fastifySwagger from '@fastify/swagger';
 import { authRoutes } from './modules/auth/auth.routes';
 import { animalsRoutes } from './modules/animals/animals.routes';
+import fastifySwaggerUi from '@fastify/swagger-ui';
 
 // --- Configuração do App Express ---
 const app = fastify();
@@ -22,6 +23,25 @@ app.register(fastifySwagger, {
             description: 'API para gerenciar usuários, tutores e animais.',
             version: '1.0.0',
         },
+        components: {
+            securitySchemes: {
+                BearerAuth: {
+                    type: 'http',
+                    scheme: 'bearer',
+                    bearerFormat: 'JWT',
+                },
+            },
+        },
+        security: [{ BearerAuth: [] }],
+    },
+    transform: jsonSchemaTransform
+});
+
+app.register(fastifySwaggerUi, {
+    routePrefix: '/docs',
+    uiConfig: {
+        docExpansion: 'list',
+        deepLinking: true,
     }
 });
 
@@ -44,7 +64,11 @@ const start = async () => {
         console.log(`🎲 DB Host: ${ENV.DATABASE_URL.split('@')[1]}`); 
     } catch (err) {
         app.log.error(err);
-        process.exit(1);
+
+        pool.end(() => {
+            console.log('Conexões do DB encerradas devido a um erro.');
+            process.exit(1);
+        });
     }
 }
 
