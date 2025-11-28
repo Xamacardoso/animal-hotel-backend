@@ -6,7 +6,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js",
+    "start": "node dist/src/server.js",
     "docker:dev": "docker-compose up --build",
     "docker:dev:stop": "docker-compose down",
     "docker:prod": "docker-compose -f docker-compose.prod.yml up --build -d",

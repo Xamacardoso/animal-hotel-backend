@@ -42,4 +42,4 @@ COPY --from=builder /usr/src/app/src/core/database/migrations ./src/core/databas
 EXPOSE 3000
 
 # Comando padrão para produção
-CMD ["sh", "-c","node dist/core/database/migrate.js && npm start"]
+CMD ["sh", "-c","node dist/src/core/database/migrate.js && npm start"]
