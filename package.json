@@ -16,7 +16,7 @@
     "drizzle:studio": "npx dotenv -e .env.dev -- drizzle-kit studio",
     "// --- DRIZZLE ORM Migrações (Executa no Container) ---": "",
     "migrate:dev": "docker-compose exec api npx dotenv -e .env.dev -- ts-node src/core/database/migrate.ts",
-    "migrate:prod": "docker-compose -f docker-compose.prod.yml exec api npx dotenv -e .env.prod -- ts-node src/core/database/migrate.ts"
+    "migrate:prod": "docker-compose -f docker-compose.prod.yml exec api npx dotenv -e .env.prod -- node dist/core/database/migrate.js"
   },
   "keywords": [],
   "author": "",

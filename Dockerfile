@@ -35,9 +35,11 @@ RUN npm install --only=production
 # Copia o código compilado do estágio anterior
 COPY --from=builder /usr/src/app/dist ./dist
 
+COPY --from=builder /usr/src/app/src/core/database/migrations ./src/core/database/migrations
+
 # As pastas prisma, .prisma e @prisma não são mais necessárias e foram removidas.
 
 EXPOSE 3000
 
 # Comando padrão para produção
-CMD ["npm", "start"]
+CMD ["sh", "-c","node dist/core/database/migrate.js && npm start"]
